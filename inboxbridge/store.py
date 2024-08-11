@@ -1,0 +1,36 @@
+import sqlite3
+
+
+class Store:
+    def __init__(self, path):
+        self.db = sqlite3.connect(path, timeout=10)
+        self.db.row_factory = sqlite3.Row
+        self.db.execute("PRAGMA journal_mode=WAL")
+        self.db.executescript("""
+            CREATE TABLE IF NOT EXISTS messages (
+                id INTEGER PRIMARY KEY,
+                source TEXT NOT NULL,
+                external_id TEXT NOT NULL,
+                room TEXT NOT NULL,
+                sender TEXT NOT NULL,
+                text TEXT NOT NULL,
+                UNIQUE(source, external_id)
+            );
+        """)
+
+    def close(self):
+        self.db.close()
+
+    def ingest(self, message):
+        message.validate()
+        with self.db:
+            cursor = self.db.execute(
+                "INSERT OR IGNORE INTO messages(source, external_id, room, sender, text) VALUES(?,?,?,?,?)",
+                (message.source, message.external_id, message.room, message.sender, message.text))
+        return cursor.rowcount == 1
+
+    def messages(self, after=0, limit=100):
+        if after < 0 or not 1 <= limit <= 500:
+            raise ValueError("Invalid page")
+        return [dict(row) for row in self.db.execute(
+            "SELECT * FROM messages WHERE id>? ORDER BY id LIMIT ?", (after, limit))]
