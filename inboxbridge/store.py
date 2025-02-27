@@ -1,8 +1,14 @@
+import json
 import sqlite3
+
+from inboxbridge.routing import route
+from inboxbridge.outbox import Outbox
 
 
 class Store:
     def __init__(self, path):
+        queue = Outbox(path)
+        queue.close()
         self.db = sqlite3.connect(path, timeout=10)
         self.db.row_factory = sqlite3.Row
         self.db.execute("PRAGMA journal_mode=WAL")
@@ -34,3 +40,19 @@ class Store:
             raise ValueError("Invalid page")
         return [dict(row) for row in self.db.execute(
             "SELECT * FROM messages WHERE id>? ORDER BY id LIMIT ?", (after, limit))]
+
+    def ingest_routed(self, message, rules):
+        message.validate()
+        destinations = route(message, rules)
+        with self.db:
+            cursor = self.db.execute(
+                "INSERT OR IGNORE INTO messages(source, external_id, room, sender, text) VALUES(?,?,?,?,?)",
+                (message.source, message.external_id, message.room, message.sender, message.text))
+            if not cursor.rowcount:
+                return False
+            for destination in destinations:
+                key = json.dumps([message.source, message.external_id, destination])
+                self.db.execute(
+                    "INSERT INTO outgoing(dedupe_key,destination,payload) VALUES(?,?,?)",
+                    (key, destination, json.dumps({"text": message.text})))
+        return True
