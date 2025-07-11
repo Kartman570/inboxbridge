@@ -56,3 +56,16 @@ class Store:
                     "INSERT INTO outgoing(dedupe_key,destination,payload) VALUES(?,?,?)",
                     (key, destination, json.dumps({"text": message.text})))
         return True
+
+    def search(self, query, room=None, after=0, limit=100):
+        if not query.strip() or len(query) > 500 or after < 0 or not 1 <= limit <= 500:
+            raise ValueError("Invalid search")
+        needle = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        sql = "SELECT * FROM messages WHERE text LIKE ? ESCAPE '\\' AND id>?"
+        values = ["%" + needle + "%", after]
+        if room is not None:
+            sql += " AND room=?"
+            values.append(room)
+        sql += " ORDER BY id LIMIT ?"
+        values.append(limit)
+        return [dict(row) for row in self.db.execute(sql, values)]
