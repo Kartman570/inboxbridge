@@ -57,3 +57,15 @@ class Outbox:
 
     def list(self):
         return [dict(row) for row in self.db.execute("SELECT id,destination,status,attempts,error FROM outgoing ORDER BY id")]
+
+    def replay(self, item_id):
+        with self.db:
+            cursor = self.db.execute("""UPDATE outgoing SET status='pending', attempts=0,
+                available=0, error='', lease=NULL, lease_until=NULL WHERE id=? AND status='dead'""", (item_id,))
+        return bool(cursor.rowcount)
+
+    def stats(self):
+        counts = {status: 0 for status in ("pending", "sending", "sent", "dead")}
+        counts.update({row["status"]: row["count"] for row in self.db.execute(
+            "SELECT status, COUNT(*) AS count FROM outgoing GROUP BY status")})
+        return counts
