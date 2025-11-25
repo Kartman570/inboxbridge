@@ -97,3 +97,22 @@ class Store:
     def activity(self, message_id):
         return [dict(row) for row in self.db.execute(
             "SELECT id,action,detail FROM activity WHERE message_id=? ORDER BY id", (message_id,))]
+
+    def archive(self, message_id, archived=True):
+        with self.db:
+            if not self.db.execute("SELECT id FROM messages WHERE id=?", (message_id,)).fetchone():
+                raise KeyError(message_id)
+            if archived:
+                changed = self.db.execute("INSERT OR IGNORE INTO archive VALUES(?)", (message_id,)).rowcount
+            else:
+                changed = self.db.execute("DELETE FROM archive WHERE message_id=?", (message_id,)).rowcount
+            if changed:
+                self.db.execute("INSERT INTO activity(message_id,action,detail) VALUES(?,?,?)",
+                                (message_id, "archive" if archived else "restore", ""))
+        return bool(changed)
+
+    def unread(self, after=0, limit=100):
+        if after < 0 or not 1 <= limit <= 500:
+            raise ValueError("Invalid page")
+        return [dict(row) for row in self.db.execute("""SELECT * FROM messages WHERE id>?
+            AND id NOT IN (SELECT message_id FROM archive) ORDER BY id LIMIT ?""", (after, limit))]
