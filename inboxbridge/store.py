@@ -12,7 +12,19 @@ class Store:
         self.db = sqlite3.connect(path, timeout=10)
         self.db.row_factory = sqlite3.Row
         self.db.execute("PRAGMA journal_mode=WAL")
+        self.db.execute("PRAGMA foreign_keys=ON")
         self.db.executescript("""
+            CREATE TABLE IF NOT EXISTS labels (
+                message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+                label TEXT NOT NULL, PRIMARY KEY(message_id, label)
+            );
+            CREATE TABLE IF NOT EXISTS archive (
+                message_id INTEGER PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE
+            );
+            CREATE TABLE IF NOT EXISTS activity (
+                id INTEGER PRIMARY KEY, message_id INTEGER NOT NULL,
+                action TEXT NOT NULL, detail TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS messages (
                 id INTEGER PRIMARY KEY,
                 source TEXT NOT NULL,
@@ -69,3 +81,38 @@ class Store:
         sql += " ORDER BY id LIMIT ?"
         values.append(limit)
         return [dict(row) for row in self.db.execute(sql, values)]
+
+    def label(self, message_id, label):
+        if not label.strip() or len(label) > 50:
+            raise ValueError("Label must contain 1 to 50 characters")
+        with self.db:
+            if not self.db.execute("SELECT id FROM messages WHERE id=?", (message_id,)).fetchone():
+                raise KeyError(message_id)
+            changed = self.db.execute("INSERT OR IGNORE INTO labels VALUES(?,?)", (message_id, label)).rowcount
+            if changed:
+                self.db.execute("INSERT INTO activity(message_id,action,detail) VALUES(?,?,?)",
+                                (message_id, "label", label))
+        return bool(changed)
+
+    def activity(self, message_id):
+        return [dict(row) for row in self.db.execute(
+            "SELECT id,action,detail FROM activity WHERE message_id=? ORDER BY id", (message_id,))]
+
+    def archive(self, message_id, archived=True):
+        with self.db:
+            if not self.db.execute("SELECT id FROM messages WHERE id=?", (message_id,)).fetchone():
+                raise KeyError(message_id)
+            if archived:
+                changed = self.db.execute("INSERT OR IGNORE INTO archive VALUES(?)", (message_id,)).rowcount
+            else:
+                changed = self.db.execute("DELETE FROM archive WHERE message_id=?", (message_id,)).rowcount
+            if changed:
+                self.db.execute("INSERT INTO activity(message_id,action,detail) VALUES(?,?,?)",
+                                (message_id, "archive" if archived else "restore", ""))
+        return bool(changed)
+
+    def unread(self, after=0, limit=100):
+        if after < 0 or not 1 <= limit <= 500:
+            raise ValueError("Invalid page")
+        return [dict(row) for row in self.db.execute("""SELECT * FROM messages WHERE id>?
+            AND id NOT IN (SELECT message_id FROM archive) ORDER BY id LIMIT ?""", (after, limit))]
