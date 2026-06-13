@@ -50,6 +50,8 @@ def main():
             print(json.dumps(store.activity(args.id), indent=2))
         else:
             print(json.dumps(store.messages(), indent=2))
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        parser.exit(2, "inboxbridge: " + str(error) + "\n")
     finally:
         store.close()
 
