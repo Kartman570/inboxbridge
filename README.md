@@ -55,3 +55,11 @@ Run that command repeatedly from your preferred supervisor. Delivery is at least
 Tests use temporary SQLite databases and a loopback HTTP receiver. No Telegram credentials are required. `make coverage` reports executable line coverage; it is not a claim that a live Telegram account has been tested.
 
 JSON lines exports contain message text and should be treated as private. Search uses SQLite LIKE with escaped wildcards, so matching is substring based and case folding depends on SQLite. This is intended for a personal inbox, not a large search cluster. There is no attachment storage, Instagram adapter, full-text ranking or user management.
+
+## Recovery and backup
+
+`python -m inboxbridge.delivery stats` summarizes the queue. Inspect exhausted rows with `list`, then use `python -m inboxbridge.delivery replay --id 1` to reset one dead row. Replaying a row that is pending, sent or currently leased does nothing.
+
+For a consistent backup, stop the HTTP server and worker before copying the SQLite database and any WAL sidecars, or use SQLite's online backup API. Never copy only the main database file while a writer is active. A restored database contains the original update IDs, which preserve ingestion deduplication.
+
+A failed request must not be acknowledged as accepted. Restarting a worker makes an abandoned delivery claim eligible again after its lease expires. HTTP requests have a shorter timeout than the lease. The action log records order, not wall-clock timestamps.
