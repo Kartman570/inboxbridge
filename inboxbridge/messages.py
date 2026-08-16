@@ -20,8 +20,16 @@ class Message:
 
 
 def from_telegram(update):
+    if not isinstance(update, dict):
+        raise ValueError("Update must be an object")
     message = update.get("message")
     if not isinstance(message, dict) or "text" not in message:
         return None
-    return Message("telegram", str(update["update_id"]), str(message["chat"]["id"]),
-                   str(message.get("from", {}).get("id", "unknown")), message["text"]).validate()
+    chat = message.get("chat")
+    sender = message.get("from", {})
+    if not isinstance(chat, dict) or not isinstance(sender, dict):
+        raise ValueError("Invalid chat or sender")
+    if type(update.get("update_id")) is not int or type(chat.get("id")) is not int:
+        raise ValueError("Update and chat IDs must be integers")
+    return Message("telegram", str(update["update_id"]), str(chat["id"]),
+                   str(sender.get("id", "unknown")), message["text"]).validate()

@@ -1,0 +1,12 @@
+services:
+  inbox:
+    build: .
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      INBOX_API_KEY: ${INBOX_API_KEY:?Set INBOX_API_KEY}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:?Set TELEGRAM_WEBHOOK_SECRET}
+    volumes:
+      - inbox-data:/data
+volumes:
+  inbox-data:
