@@ -4,9 +4,11 @@ services:
     ports:
       - "127.0.0.1:8000:8000"
     environment:
+      INBOX_RULES: /config/rules.json
       INBOX_API_KEY: ${INBOX_API_KEY:?Set INBOX_API_KEY}
       TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:?Set TELEGRAM_WEBHOOK_SECRET}
     volumes:
       - inbox-data:/data
+      - ./examples/rules.json:/config/rules.json:ro
 volumes:
   inbox-data:
