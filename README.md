@@ -36,7 +36,7 @@ uvicorn inboxbridge.api:create_app --factory --host 127.0.0.1
 
 `POST /messages/{id}/labels?label=todo`, `POST /messages/{id}/archive`, and `GET /messages/{id}/activity` provide the same actions as the CLI. Pass `archived=false` to restore a message.
 
-`docker compose up --build` starts only the HTTP server with a named data volume. The port is bound to loopback. Public webhook hosting needs your own HTTPS reverse proxy and request-size limits.
+`docker compose up --build` starts only the HTTP server with a named data volume and the example routing file mounted read-only. Edit that file to set actual destination IDs (as strings). The port is bound to loopback. Public webhook hosting needs your own HTTPS reverse proxy and request-size limits.
 
 ## Delivery
 
@@ -63,3 +63,14 @@ JSON lines exports contain message text and should be treated as private. Search
 For a consistent backup, stop the HTTP server and worker before copying the SQLite database and any WAL sidecars, or use SQLite's online backup API. Never copy only the main database file while a writer is active. A restored database contains the original update IDs, which preserve ingestion deduplication.
 
 A failed request must not be acknowledged as accepted. Restarting a worker makes an abandoned delivery claim eligible again after its lease expires. HTTP requests have a shorter timeout than the lease. The action log records order, not wall-clock timestamps.
+
+List, search and unread CLI commands return at most 100 rows by default. Use `--limit` (up to 500) and `--after <last-id>` to request the next page. Export streams the whole inbox.
+
+With Docker, run inspection and delivery inside the same service volume:
+
+```sh
+docker compose exec inbox python -m inboxbridge.delivery --db /data/inbox.sqlite3 list
+docker compose exec -e TELEGRAM_BOT_TOKEN inbox python -m inboxbridge.delivery --db /data/inbox.sqlite3 once
+```
+
+The second command reads `TELEGRAM_BOT_TOKEN` from your host environment and explicitly sends one queued message. Never put the token into a tracked file.

@@ -16,12 +16,15 @@ def main():
     ingest = commands.add_parser("ingest")
     ingest.add_argument("file")
     ingest.add_argument("--rules")
-    commands.add_parser("list")
+    listing = commands.add_parser("list")
     commands.add_parser("export")
-    commands.add_parser("unread")
+    unread = commands.add_parser("unread")
     search = commands.add_parser("search")
     search.add_argument("query")
     search.add_argument("--room")
+    for command in (listing, unread, search):
+        command.add_argument("--after", type=int, default=0)
+        command.add_argument("--limit", type=int, default=100)
     for name in ("archive", "restore", "activity", "label"):
         command = commands.add_parser(name)
         command.add_argument("id", type=int)
@@ -39,9 +42,9 @@ def main():
         elif args.command == "export":
             export_messages(store, sys.stdout)
         elif args.command == "search":
-            print(json.dumps(store.search(args.query, args.room), indent=2))
+            print(json.dumps(store.search(args.query, args.room, args.after, args.limit), indent=2))
         elif args.command == "unread":
-            print(json.dumps(store.unread(), indent=2))
+            print(json.dumps(store.unread(args.after, args.limit), indent=2))
         elif args.command == "label":
             print(json.dumps({"changed": store.label(args.id, args.label)}))
         elif args.command in ("archive", "restore"):
@@ -49,7 +52,7 @@ def main():
         elif args.command == "activity":
             print(json.dumps(store.activity(args.id), indent=2))
         else:
-            print(json.dumps(store.messages(), indent=2))
+            print(json.dumps(store.messages(args.after, args.limit), indent=2))
     except (OSError, ValueError, KeyError, TypeError) as error:
         parser.exit(2, "inboxbridge: " + str(error) + "\n")
     finally:

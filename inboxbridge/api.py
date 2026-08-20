@@ -28,7 +28,7 @@ def create_app(path=None, api_key=None, webhook_secret=None, rules=()):
             store.close()
 
     def authorize(authorization: str = Header(default="")):
-        if not hmac.compare_digest(authorization, "Bearer " + api_key):
+        if not hmac.compare_digest(authorization.encode(), ("Bearer " + api_key).encode()):
             raise HTTPException(401, "Invalid API key")
 
     @app.get("/health")
@@ -51,7 +51,7 @@ def create_app(path=None, api_key=None, webhook_secret=None, rules=()):
 
     @app.post("/webhooks/telegram")
     def receive(update: dict, x_telegram_bot_api_secret_token: str = Header(default="")):
-        if not hmac.compare_digest(x_telegram_bot_api_secret_token, webhook_secret):
+        if not hmac.compare_digest(x_telegram_bot_api_secret_token.encode(), webhook_secret.encode()):
             raise HTTPException(401, "Invalid webhook secret")
         try:
             message = from_telegram(update)
