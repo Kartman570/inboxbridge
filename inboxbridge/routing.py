@@ -9,6 +9,8 @@ class Rule:
     room: str = ""
 
     def validate(self):
+        if any(not isinstance(value, str) for value in (self.name, self.contains, self.destination, self.room)):
+            raise ValueError("Rule fields must be strings; quote numeric chat IDs")
         if not self.name.strip() or not self.contains.strip() or not self.destination.strip():
             raise ValueError("Rules need a name, search text and destination")
         return self
@@ -18,4 +20,9 @@ class Rule:
 
 
 def route(message, rules):
-    return sorted({rule.validate().destination for rule in rules if rule.matches(message)})
+    destinations = set()
+    for rule in rules:
+        rule.validate()
+        if rule.matches(message):
+            destinations.add(rule.destination)
+    return sorted(destinations)
